@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Product Application
+
+# Common properties to all the functions and APIs
+Globals:
+  Function:
+    Timeout: 30
+    Environment:
+      Variables:
+        PRODUCT_TABLE: !Ref ProductTable
+
+Parameters:
+  MyEnvironment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+
+Resources:
+  ProductTable:
+    Type: AWS::Serverless::SimpleTable #simple DynamoDB table
+    Properties:
+      TableName: !Sub 'products-${MyEnvironment}'
+      PrimaryKey:
+        Name: id
+        Type: String
+  ProductApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'POST, GET, DELETE'"
+  ProductFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: product/
+      Handler: app.lambdaHandler
+      Runtime: nodejs14.x
+      Policies:
+      - Statement:
+        - Sid: VisualEditor0
+          Effect: Allow
+          Action:
+          - dynamodb:BatchGetItem
+          - dynamodb:BatchWriteItem
+          - dynamodb:PutItem
+          - dynamodb:GetItem
+          - dynamodb:DeleteItem
+          - dynamodb:Scan
+          - dynamodb:Query
+          - dynamodb:UpdateItem
+          - logs:CreateLogStream
+          - logs:CreateLogGroup
+          Resource: 
+          - 'arn:aws:logs:ap-southeast-1:921490761789:log-group:*'
+          - !Sub 'arn:aws:dynamodb:ap-southeast-1:921490761789:table/products-${MyEnvironment}'
+        - Sid: VisualEditor1
+          Effect: Allow
+          Action:
+          - logs:PutLogEvents
+          Resource: 'arn:aws:logs:ap-southeast-1:921490761789:log-group:*:log-stream:*'
+      Events:
+        AddProduct:
+          Type: Api
+          Properties:
+            Path: /product
+            Method: post
+            RestApiId:
+              Ref: ProductApi
+        DeleteProduct:
+          Type: Api
+          Properties:
+            Path: /product/{id}
+            Method: delete   
+            RestApiId:
+              Ref: ProductApi       
+        GetProduct:
+          Type: Api
+          Properties:
+            Path: /product/{id}
+            Method: get
+            RestApiId:
+              Ref: ProductApi
+        ListProduct:
+          Type: Api
+          Properties:
+            Path: /product
+            Method: get
+            RestApiId:
+              Ref: ProductApi 
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  ApiURL:
+    Description: "API Gateway endpoint URL for Prod stage for Product function"
+    Value: !Sub "https://${ProductApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/product/"
